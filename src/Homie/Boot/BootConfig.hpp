@@ -31,27 +31,7 @@ class BootConfig : public Boot {
   int setConfig(const String& ssid, const String& psk);
 
  private:
-  HTTPClient _httpClient;
-  ESP8266WebServer _http;
-  DNSServer _dns;
-  uint8_t _ssidCount;
-  bool _wifiScanAvailable;
-  Timer _wifiScanTimer;
-  bool _lastWifiScanEnded;
-  char* _jsonWifiNetworks;
   bool _flaggedForReboot;
   uint32_t _flaggedForRebootAt;
-  bool _proxyEnabled;
-  char _apIpStr[15 + 1];
-
-  void _onCaptivePortal();
-  void _onDeviceInfoRequest();
-  void _onNetworksRequest();
-  void _onConfigRequest();
-  void _generateNetworksJson();
-  void _onWifiConnectRequest();
-  void _onProxyControlRequest();
-  void _proxyHttpRequest();
-  void _onWifiStatusRequest();
 };
 }  // namespace HomieInternals
