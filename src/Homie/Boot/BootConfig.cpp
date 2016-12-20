@@ -67,7 +67,7 @@ int BootConfig::setConfig(const String& ssid, const String& psk) {
 
   Interface::get().getLogger() << F("✔ Configured") << endl;
 
-  _flaggedForReboot = true;  // We don't reboot immediately, otherwise the response above is not sent
+  _flaggedForReboot = true;  // We don't reboot immediately, otherwise the response to mobile app is not sent
   _flaggedForRebootAt = millis();
 
   return 201; // 201 created
