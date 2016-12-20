@@ -28,6 +28,7 @@ class BootConfig : public Boot {
   ~BootConfig();
   void setup();
   void loop();
+  int setConfig(const String& ssid, const String& psk);
 
  private:
   HTTPClient _httpClient;

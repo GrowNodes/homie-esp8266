@@ -26,44 +26,49 @@ void BootConfig::setup() {
   }
 
   Interface::get().getLogger() << F("Device ID is ") << DeviceId::get() << endl;
+  WiFi.mode(WIFI_STA);
+  WiFi.beginSmartConfig();
+  Interface::get().getLogger() << F("☢  ESP Touch / Smart Config is now active.") << endl;
 
-  WiFi.mode(WIFI_AP_STA);
 
-  char apName[MAX_WIFI_SSID_LENGTH];
-  strcpy(apName, Interface::get().brand);
-  strcat_P(apName, PSTR("-"));
-  strcat(apName, DeviceId::get());
 
-  WiFi.softAPConfig(ACCESS_POINT_IP, ACCESS_POINT_IP, IPAddress(255, 255, 255, 0));
-  if (Interface::get().configurationAp.secured) {
-    WiFi.softAP(apName, Interface::get().configurationAp.password);
-  } else {
-    WiFi.softAP(apName);
-  }
-
-  sprintf(_apIpStr, "%d.%d.%d.%d", ACCESS_POINT_IP[0], ACCESS_POINT_IP[1], ACCESS_POINT_IP[2], ACCESS_POINT_IP[3]);
-
-  Interface::get().getLogger() << F("AP started as ") << apName << F(" with IP ") << _apIpStr << endl;
-  _dns.setTTL(30);
-  _dns.setErrorReplyCode(DNSReplyCode::NoError);
-  _dns.start(53, F("*"), ACCESS_POINT_IP);
-
-  _http.on("/heart", HTTP_GET, [this]() {
-    Interface::get().getLogger() << F("Received heart request") << endl;
-    _http.send(204);
-  });
-  _http.on("/device-info", HTTP_GET, std::bind(&BootConfig::_onDeviceInfoRequest, this));
-  _http.on("/networks", HTTP_GET, std::bind(&BootConfig::_onNetworksRequest, this));
-  _http.on("/config", HTTP_PUT, std::bind(&BootConfig::_onConfigRequest, this));
-  _http.on("/config", HTTP_OPTIONS, [this]() {  // CORS
-    Interface::get().getLogger() << F("Received CORS request for /config") << endl;
-    _http.sendContent(FPSTR(PROGMEM_CONFIG_CORS));
-  });
-  _http.on("/wifi/connect", HTTP_PUT, std::bind(&BootConfig::_onWifiConnectRequest, this));
-  _http.on("/wifi/status", HTTP_GET, std::bind(&BootConfig::_onWifiStatusRequest, this));
-  _http.on("/proxy/control", HTTP_PUT, std::bind(&BootConfig::_onProxyControlRequest, this));
-  _http.onNotFound(std::bind(&BootConfig::_onCaptivePortal, this));
-  _http.begin();
+  // WiFi.mode(WIFI_AP_STA);
+  //
+  // char apName[MAX_WIFI_SSID_LENGTH];
+  // strcpy(apName, Interface::get().brand);
+  // strcat_P(apName, PSTR("-"));
+  // strcat(apName, DeviceId::get());
+  //
+  // WiFi.softAPConfig(ACCESS_POINT_IP, ACCESS_POINT_IP, IPAddress(255, 255, 255, 0));
+  // if (Interface::get().configurationAp.secured) {
+  //   WiFi.softAP(apName, Interface::get().configurationAp.password);
+  // } else {
+  //   WiFi.softAP(apName);
+  // }
+  //
+  // sprintf(_apIpStr, "%d.%d.%d.%d", ACCESS_POINT_IP[0], ACCESS_POINT_IP[1], ACCESS_POINT_IP[2], ACCESS_POINT_IP[3]);
+  //
+  // Interface::get().getLogger() << F("AP started as ") << apName << F(" with IP ") << _apIpStr << endl;
+  // _dns.setTTL(30);
+  // _dns.setErrorReplyCode(DNSReplyCode::NoError);
+  // _dns.start(53, F("*"), ACCESS_POINT_IP);
+  //
+  // _http.on("/heart", HTTP_GET, [this]() {
+  //   Interface::get().getLogger() << F("Received heart request") << endl;
+  //   _http.send(204);
+  // });
+  // _http.on("/device-info", HTTP_GET, std::bind(&BootConfig::_onDeviceInfoRequest, this));
+  // _http.on("/networks", HTTP_GET, std::bind(&BootConfig::_onNetworksRequest, this));
+  // _http.on("/config", HTTP_PUT, std::bind(&BootConfig::_onConfigRequest, this));
+  // _http.on("/config", HTTP_OPTIONS, [this]() {  // CORS
+  //   Interface::get().getLogger() << F("Received CORS request for /config") << endl;
+  //   _http.sendContent(FPSTR(PROGMEM_CONFIG_CORS));
+  // });
+  // _http.on("/wifi/connect", HTTP_PUT, std::bind(&BootConfig::_onWifiConnectRequest, this));
+  // _http.on("/wifi/status", HTTP_GET, std::bind(&BootConfig::_onWifiStatusRequest, this));
+  // _http.on("/proxy/control", HTTP_PUT, std::bind(&BootConfig::_onProxyControlRequest, this));
+  // _http.onNotFound(std::bind(&BootConfig::_onCaptivePortal, this));
+  // _http.begin();
 }
 
 void BootConfig::_onWifiConnectRequest() {
@@ -329,6 +334,48 @@ void BootConfig::_onNetworksRequest() {
   }
 }
 
+int BootConfig::setConfig(const String& ssid, const String& psk) {
+  Interface::get().getLogger() << F("Received request to programmatically configure Homie") << endl;
+  if (_flaggedForReboot) {
+    Interface::get().getLogger() << F("✖ Device already configured") << endl;
+    return 429; // 429 Too many requests
+  }
+
+
+  String thejson;
+  thejson += "{	\"name\": \"";
+  thejson += DeviceId::get();
+  thejson += "\",	\"wifi\": {		\"ssid\": \"";
+  thejson += ssid;
+  thejson += "\",		\"password\": \"";
+  thejson += "12345678";
+  thejson += "\"	},	\"mqtt\": {		\"host\": \"demo.example.com\",		\"port\": 1883,		\"base_topic\": \"nodes/\",		\"auth\": false	},	\"ota\": {		\"enabled\": false	},	\"settings\": {		\"aborted\": false,		\"settings_id\": \"\",		\"light_off_at\": 22,		\"light_on_at\": 5	}}";
+
+  Interface::get().getLogger() << F("Parsing config json") << endl;
+  StaticJsonBuffer<MAX_JSON_CONFIG_ARDUINOJSON_BUFFER_SIZE> parseJsonBuffer;
+  std::unique_ptr<char[]> bodyString = Helpers::cloneString(thejson);
+  JsonObject& parsedJson = parseJsonBuffer.parseObject(bodyString.get());  // workaround, cannot pass raw String otherwise JSON parsing fails randomly
+  if (!parsedJson.success()) {
+    Interface::get().getLogger() << F("✖ Invalid or too big JSON") << endl;
+    return 413; // 413 Request entity too large
+  }
+
+  ConfigValidationResult configValidationResult = Validation::validateConfig(parsedJson);
+  if (!configValidationResult.valid) {
+    Interface::get().getLogger() << F("✖ Config file is not valid, reason: ") << configValidationResult.reason << endl;
+    return 400; // 400 Bad request
+  }
+
+  Interface::get().getConfig().write(parsedJson);
+
+  Interface::get().getLogger() << F("✔ Configured") << endl;
+
+  _flaggedForReboot = true;  // We don't reboot immediately, otherwise the response above is not sent
+  _flaggedForRebootAt = millis();
+
+  return 201; // 201 created
+}
+
 void BootConfig::_onConfigRequest() {
   Interface::get().getLogger() << F("Received config request") << endl;
   if (_flaggedForReboot) {
@@ -374,8 +421,20 @@ void BootConfig::_onConfigRequest() {
 void BootConfig::loop() {
   Boot::loop();
 
-  _dns.processNextRequest();
-  _http.handleClient();
+
+  if(WiFi.smartConfigDone() && !_flaggedForReboot){
+    Interface::get().getLogger() << F("✔ ESP Touch / Smart Config sucess") << endl;
+    String ssid = WiFi.SSID();
+    String psk = WiFi.psk();
+
+    setConfig(ssid, psk);
+
+    // WiFi.stopSmartConfig();
+  }
+
+
+  // _dns.processNextRequest();
+  // _http.handleClient();
 
   if (_flaggedForReboot) {
     if (millis() - _flaggedForRebootAt >= 3000UL) {
@@ -387,32 +446,32 @@ void BootConfig::loop() {
     return;
   }
 
-  if (!_lastWifiScanEnded) {
-    int8_t scanResult = WiFi.scanComplete();
-
-    switch (scanResult) {
-      case WIFI_SCAN_RUNNING:
-        return;
-      case WIFI_SCAN_FAILED:
-        Interface::get().getLogger() << F("✖ Wi-Fi scan failed") << endl;
-        _ssidCount = 0;
-        _wifiScanTimer.reset();
-        break;
-      default:
-        Interface::get().getLogger() << F("✔ Wi-Fi scan completed") << endl;
-        _ssidCount = scanResult;
-        _generateNetworksJson();
-        _wifiScanAvailable = true;
-        break;
-    }
-
-    _lastWifiScanEnded = true;
-  }
-
-  if (_lastWifiScanEnded && _wifiScanTimer.check()) {
-    Interface::get().getLogger() << F("Triggering Wi-Fi scan...") << endl;
-    WiFi.scanNetworks(true);
-    _wifiScanTimer.tick();
-    _lastWifiScanEnded = false;
-  }
+  // if (!_lastWifiScanEnded) {
+  //   int8_t scanResult = WiFi.scanComplete();
+  //
+  //   switch (scanResult) {
+  //     case WIFI_SCAN_RUNNING:
+  //       return;
+  //     case WIFI_SCAN_FAILED:
+  //       Interface::get().getLogger() << F("✖ Wi-Fi scan failed") << endl;
+  //       _ssidCount = 0;
+  //       _wifiScanTimer.reset();
+  //       break;
+  //     default:
+  //       Interface::get().getLogger() << F("✔ Wi-Fi scan completed") << endl;
+  //       _ssidCount = scanResult;
+  //       _generateNetworksJson();
+  //       _wifiScanAvailable = true;
+  //       break;
+  //   }
+  //
+  //   _lastWifiScanEnded = true;
+  // }
+  //
+  // if (_lastWifiScanEnded && _wifiScanTimer.check()) {
+  //   Interface::get().getLogger() << F("Triggering Wi-Fi scan...") << endl;
+  //   WiFi.scanNetworks(true);
+  //   _wifiScanTimer.tick();
+  //   _lastWifiScanEnded = false;
+  // }
 }
