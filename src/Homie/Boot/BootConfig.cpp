@@ -335,12 +335,13 @@ void BootConfig::_onNetworksRequest() {
 }
 
 int BootConfig::setConfig(const String& ssid, const String& psk) {
-  Interface::get().getLogger() << F("Received request to programmatically configure Homie") << endl;
+  Interface::get().getLogger() << F("☇ Programmatically configuring Homie") << endl;
   if (_flaggedForReboot) {
     Interface::get().getLogger() << F("✖ Device already configured") << endl;
     return 429; // 429 Too many requests
   }
 
+  Interface::get().getLogger() << F("Generating config json") << endl;
 
   String thejson;
   thejson += "{	\"name\": \"";
@@ -351,7 +352,6 @@ int BootConfig::setConfig(const String& ssid, const String& psk) {
   thejson += "12345678";
   thejson += "\"	},	\"mqtt\": {		\"host\": \"demo.example.com\",		\"port\": 1883,		\"base_topic\": \"nodes/\",		\"auth\": false	},	\"ota\": {		\"enabled\": false	},	\"settings\": {		\"aborted\": false,		\"settings_id\": \"\",		\"light_off_at\": 22,		\"light_on_at\": 5	}}";
 
-  Interface::get().getLogger() << F("Parsing config json") << endl;
   StaticJsonBuffer<MAX_JSON_CONFIG_ARDUINOJSON_BUFFER_SIZE> parseJsonBuffer;
   std::unique_ptr<char[]> bodyString = Helpers::cloneString(thejson);
   JsonObject& parsedJson = parseJsonBuffer.parseObject(bodyString.get());  // workaround, cannot pass raw String otherwise JSON parsing fails randomly
@@ -422,56 +422,30 @@ void BootConfig::loop() {
   Boot::loop();
 
 
-  if(WiFi.smartConfigDone() && !_flaggedForReboot){
-    Interface::get().getLogger() << F("✔ ESP Touch / Smart Config sucess") << endl;
+  if(WiFi.smartConfigDone() && !_flaggedForReboot) {
+    Interface::get().getLogger() << F("✔ ESP Touch received configuration") << endl;
     String ssid = WiFi.SSID();
     String psk = WiFi.psk();
 
     setConfig(ssid, psk);
 
-    // WiFi.stopSmartConfig();
+    WiFi.printDiag(Serial);
   }
 
-
-  // _dns.processNextRequest();
-  // _http.handleClient();
-
-  if (_flaggedForReboot) {
-    if (millis() - _flaggedForRebootAt >= 3000UL) {
+  if (_flaggedForReboot){
+    if (WiFi.status() == WL_CONNECTED) {
+      // WiFi.stopSmartConfig();
+      Interface::get().getLogger() << F("✔ Verified WiFi configuration") << WiFi.localIP() << endl;
       Interface::get().getLogger() << F("↻ Rebooting into normal mode...") << endl;
       Serial.flush();
       ESP.restart();
+    } else if (millis() - _flaggedForRebootAt >= 58000UL) {    // Default ESP Touch for android app times out in 58000 ms
+      Interface::get().getLogger() << F("✖ Failed ESP Touch failed! (wrong SSID/PW or not compatible with ESP Touch)") << endl;
+      _flaggedForReboot = false;
+      WiFi.stopSmartConfig();
+      WiFi.beginSmartConfig();
     }
 
-    return;
   }
 
-  // if (!_lastWifiScanEnded) {
-  //   int8_t scanResult = WiFi.scanComplete();
-  //
-  //   switch (scanResult) {
-  //     case WIFI_SCAN_RUNNING:
-  //       return;
-  //     case WIFI_SCAN_FAILED:
-  //       Interface::get().getLogger() << F("✖ Wi-Fi scan failed") << endl;
-  //       _ssidCount = 0;
-  //       _wifiScanTimer.reset();
-  //       break;
-  //     default:
-  //       Interface::get().getLogger() << F("✔ Wi-Fi scan completed") << endl;
-  //       _ssidCount = scanResult;
-  //       _generateNetworksJson();
-  //       _wifiScanAvailable = true;
-  //       break;
-  //   }
-  //
-  //   _lastWifiScanEnded = true;
-  // }
-  //
-  // if (_lastWifiScanEnded && _wifiScanTimer.check()) {
-  //   Interface::get().getLogger() << F("Triggering Wi-Fi scan...") << endl;
-  //   WiFi.scanNetworks(true);
-  //   _wifiScanTimer.tick();
-  //   _lastWifiScanEnded = false;
-  // }
 }
