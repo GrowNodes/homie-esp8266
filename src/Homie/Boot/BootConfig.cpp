@@ -33,30 +33,37 @@ int BootConfig::setConfig(const String& ssid, const String& psk) {
 
   Interface::get().getLogger() << F("Generating config json") << endl;
 
-  String thejson;
-  thejson += "{	\"name\": \"";
-  thejson += DeviceId::get();
-  thejson += "\",	\"wifi\": {		\"ssid\": \"";
-  thejson += ssid;
-  thejson += "\",		\"password\": \"";
-  thejson += "12345678";
-  thejson += "\"	},	\"mqtt\": {		\"host\": \"demo.example.com\",		\"port\": 1883,		\"base_topic\": \"nodes/\",		\"auth\": false	},	\"ota\": {		\"enabled\": false	},	\"settings\": {		\"aborted\": false,		\"settings_id\": \"\",		\"light_off_at\": 22,		\"light_on_at\": 5	}}";
-
   StaticJsonBuffer<MAX_JSON_CONFIG_ARDUINOJSON_BUFFER_SIZE> parseJsonBuffer;
-  std::unique_ptr<char[]> bodyString = Helpers::cloneString(thejson);
-  JsonObject& parsedJson = parseJsonBuffer.parseObject(bodyString.get());  // workaround, cannot pass raw String otherwise JSON parsing fails randomly
-  if (!parsedJson.success()) {
-    Interface::get().getLogger() << F("✖ Invalid or too big JSON") << endl;
-    return 413; // 413 Request entity too large
-  }
+  JsonObject& generatedConfig = parseJsonBuffer.createObject();
+  generatedConfig["name"] = DeviceId::get();
 
-  ConfigValidationResult configValidationResult = Validation::validateConfig(parsedJson);
+  JsonObject& wifiObj = generatedConfig.createNestedObject("wifi");
+  wifiObj["ssid"] = ssid;
+  wifiObj["password"] = psk;
+
+  JsonObject& mqttObj = generatedConfig.createNestedObject("mqtt");
+  mqttObj["host"] = "demo.example.com";
+  mqttObj["port"] = 1883;
+  mqttObj["base_topic"] = "nodes/";
+  mqttObj["auth"] = false;
+
+  JsonObject& otaObj = generatedConfig.createNestedObject("ota");
+  otaObj["enabled"] = false;
+
+  JsonObject& settingsObj = generatedConfig.createNestedObject("settings");
+  settingsObj["aborted"] = false;
+  settingsObj["settings_id"] = "undefined";
+  settingsObj["light_off_at"] = 22;
+  settingsObj["light_on_at"] = 5;
+
+
+  ConfigValidationResult configValidationResult = Validation::validateConfig(generatedConfig);
   if (!configValidationResult.valid) {
     Interface::get().getLogger() << F("✖ Config file is not valid, reason: ") << configValidationResult.reason << endl;
     return 400; // 400 Bad request
   }
 
-  Interface::get().getConfig().write(parsedJson);
+  Interface::get().getConfig().write(generatedConfig);
 
   Interface::get().getLogger() << F("✔ Configured") << endl;
 
@@ -71,7 +78,7 @@ void BootConfig::loop() {
 
 
   if(WiFi.smartConfigDone() && !_flaggedForReboot) {
-    Interface::get().getLogger() << F("☇ ESP Touch received configuration") << endl;
+    Interface::get().getLogger() << F("⇄ ESP Touch received configuration") << endl;
 
     setConfig(WiFi.SSID(), WiFi.psk());
   }
