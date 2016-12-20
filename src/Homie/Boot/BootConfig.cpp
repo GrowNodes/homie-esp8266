@@ -25,7 +25,7 @@ void BootConfig::setup() {
 }
 
 int BootConfig::setConfig(const String& ssid, const String& psk) {
-  Interface::get().getLogger() << F("☇ Programmatically configuring Homie") << endl;
+  Interface::get().getLogger() << F("Programmatically configuring Homie") << endl;
   if (_flaggedForReboot) {
     Interface::get().getLogger() << F("✖ Device already configured") << endl;
     return 429; // 429 Too many requests
@@ -71,27 +71,22 @@ void BootConfig::loop() {
 
 
   if(WiFi.smartConfigDone() && !_flaggedForReboot) {
-    Interface::get().getLogger() << F("✔ ESP Touch received configuration") << endl;
-    String ssid = WiFi.SSID();
-    String psk = WiFi.psk();
+    Interface::get().getLogger() << F("☇ ESP Touch received configuration") << endl;
 
-    setConfig(ssid, psk);
-
-    WiFi.printDiag(Serial);
+    setConfig(WiFi.SSID(), WiFi.psk());
   }
 
   if (_flaggedForReboot){
     if (WiFi.status() == WL_CONNECTED) {
-      // WiFi.stopSmartConfig();
-      Interface::get().getLogger() << F("✔ Verified WiFi configuration") << WiFi.localIP() << endl;
-      if (millis() - _flaggedForRebootAt >= 5000UL) {
-        /* code */
+      if (millis() - _flaggedForRebootAt >= 5000UL) { // wait for ESP Touch to send IP info to app.
+        // WiFi.localIP()
+        Interface::get().getLogger() << F("✔ Verified WiFi configuration") << endl;
         Interface::get().getLogger() << F("↻ Rebooting into normal mode...") << endl;
         Serial.flush();
         ESP.restart();
       }
     } else if (millis() - _flaggedForRebootAt >= 58000UL) {    // Default ESP Touch for android app times out in 58000 ms
-      Interface::get().getLogger() << F("✖ Failed ESP Touch failed! (wrong SSID/PW or not compatible with ESP Touch)") << endl;
+      Interface::get().getLogger() << F("✖ ESP Touch failed (wrong SSID/PW or not compatible with ESP Touch)") << endl;
       _flaggedForReboot = false;
       WiFi.stopSmartConfig();
       WiFi.beginSmartConfig();
