@@ -65,7 +65,7 @@ int BootConfig::setConfig(const String& ssid, const String& psk) {
 
   Interface::get().getConfig().write(generatedConfig);
 
-  Interface::get().getLogger() << F("✔ Configured") << endl;
+  Interface::get().getLogger() << F("✔ Configured, verifying WiFi configuration...") << endl;
 
   _flaggedForReboot = true;  // We don't reboot immediately, otherwise the response to mobile app is not sent
   _flaggedForRebootAt = millis();
@@ -93,7 +93,7 @@ void BootConfig::loop() {
         ESP.restart();
       }
     } else if (millis() - _flaggedForRebootAt >= 58000UL) {    // Default ESP Touch for android app times out in 58000 ms
-      Interface::get().getLogger() << F("✖ ESP Touch failed (wrong SSID/PW or not compatible with ESP Touch)") << endl;
+      Interface::get().getLogger() << F("✖ Bad WiFi configuration: Couldn't get an IP address. (Wrong SSID/PW or not AP not compatible)") << endl;
       _flaggedForReboot = false;
       WiFi.stopSmartConfig();
       WiFi.beginSmartConfig();
