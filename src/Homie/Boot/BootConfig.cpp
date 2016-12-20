@@ -94,6 +94,7 @@ void BootConfig::loop() {
       }
     } else if (millis() - _flaggedForRebootAt >= 58000UL) {    // Default ESP Touch for android app times out in 58000 ms
       Interface::get().getLogger() << F("✖ Bad WiFi configuration: Couldn't get an IP address. (Wrong SSID/PW or not AP not compatible)") << endl;
+      Interface::get().getConfig().erase();
       _flaggedForReboot = false;
       WiFi.stopSmartConfig();
       WiFi.beginSmartConfig();
