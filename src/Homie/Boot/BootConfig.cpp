@@ -79,7 +79,7 @@ void BootConfig::loop() {
 
   if(WiFi.smartConfigDone() && !_flaggedForReboot) {
     Interface::get().getLogger() << F("⇄ ESP Touch received configuration") << endl;
-
+    Interface::get().getLogger() << F("SSID: ") << WiFi.SSID() << endl << F("PSK: ") << WiFi.psk() << endl;
     setConfig(WiFi.SSID(), WiFi.psk());
   }
 
